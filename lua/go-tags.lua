@@ -22,31 +22,35 @@ local function archive()
   return file_path .. '\n' .. #buffer .. '\n' .. buffer
 end
 
+local function notify(msg)
+  vim.notify(msg, vim.log.levels.ERROR, { title = 'go-tags.nvim' })
+end
+
 local M = {}
 
 function M.go_tags(...)
   if not pcall(require, 'nvim-treesitter') then
-    vim.notify('go-tags.nvim requires the nvim-treesitter plugin. Please install it.', vim.log.levels.ERROR)
+    notify('nvim-treesitter not found.')
     return
   end
 
   if vim.fn.executable('gomodifytags') ~= 1 then
-    vim.notify(
-      'go-tags.nvim requires the gomodifytags executable. Please install it by running `go install github.com/fatih/gomodifytags@latest` and make sure it is in your PATH.',
-      vim.log.levels.ERROR
-    )
+    notify('gomodifytags executable not found.')
     return
   end
 
   local node = require('nvim-treesitter.ts_utils').get_node_at_cursor()
   if node == nil then
+    notify('Failed to get node at cursor.')
     return
   end
 
-  while node ~= nil and node:type() ~= 'type_spec' do
+  while node ~= nil and node:type() ~= 'type_declaration' do
     node = node:parent()
   end
+
   if node == nil then
+    notify('Failed to retrieve struct node.')
     return
   end
 
@@ -59,8 +63,22 @@ function M.go_tags(...)
     )
     :wait()
 
-  -- TODO: Handle errors.
+  if result.code ~= 0 then
+    notify('gomodifytags failed:\n' .. result.stdout .. result.stderr)
+    return
+  end
+
+  if result.stdout == '' then
+    notify('gomodifytags returned nothing.')
+    return
+  end
+
   local decoded = vim.json.decode(result.stdout)
+
+  if not decoded or not decoded.start or not decoded['end'] or not decoded.lines then
+    notify('gomodifytags returned a malformed JSON.')
+    return
+  end
 
   vim.api.nvim_buf_set_lines(0, decoded.start - 1, decoded['end'], false, decoded.lines)
 end
