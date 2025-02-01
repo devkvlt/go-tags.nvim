@@ -56,9 +56,10 @@ function M.go_tags(...)
 
   local range = node:start() + 1 .. ',' .. node:end_() + 1
 
+  local file_path = vim.fn.expand('%:p:gs?\\?/?')
   local result = vim
     .system(
-      { 'gomodifytags', '-file', vim.fn.expand('%'), '-line', range, '-format', 'json', '-modified', ... },
+      { 'gomodifytags', '-file', file_path, '-line', range, '-format', 'json', '-modified', ... },
       { text = true, stdin = archive() }
     )
     :wait()
